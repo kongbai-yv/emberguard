@@ -1,0 +1,66 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 15% 8%;
+    --foreground: 210 40% 96%;
+    --card: 220 15% 12%;
+    --card-foreground: 210 40% 96%;
+    --primary: 200 90% 55%;
+    --primary-foreground: 210 40% 98%;
+    --primary-glow: 200 90% 70%;
+    --secondary: 220 15% 18%;
+    --secondary-foreground: 210 40% 96%;
+    --destructive: 0 75% 55%;
+    --destructive-foreground: 210 40% 98%;
+    --warning: 35 95% 55%;
+    --warning-foreground: 220 15% 8%;
+    --success: 145 70% 45%;
+    --success-foreground: 210 40% 98%;
+    --muted: 220 15% 15%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 220 15% 18%;
+    --accent-foreground: 210 40% 96%;
+    --border: 220 15% 20%;
+    --input: 220 15% 15%;
+    --ring: 200 90% 55%;
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer utilities {
+  .text-glow {
+    text-shadow: 0 0 10px hsl(var(--primary-glow) / 0.5);
+  }
+
+  .border-glow {
+    box-shadow: 0 0 20px hsl(var(--primary-glow) / 0.2);
+  }
+
+  .alarm-active {
+    animation: alarm-pulse 1s ease-in-out infinite;
+  }
+
+  @keyframes alarm-pulse {
+    0%, 100% {
+      background-color: hsl(var(--destructive));
+      box-shadow: 0 0 20px hsl(0 75% 55% / 0.6);
+    }
+    50% {
+      background-color: hsl(0 75% 45%);
+      box-shadow: 0 0 40px hsl(0 75% 55% / 0.8);
+    }
+  }
+}

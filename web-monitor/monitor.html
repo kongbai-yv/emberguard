@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工业物联网监控大屏</title>
+    <script src="https://unpkg.com/mqtt@5.7.0/dist/mqtt.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: #0d1117;
+            color: #e6edf3;
+            padding: 2rem;
+            min-height: 100vh;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        header { margin-bottom: 2rem; }
+        h1 { font-size: 2rem; margin-bottom: 0.5rem; color: #58a6ff; }
+        .subtitle { color: #8b949e; font-size: 0.9rem; }
+        
+        .status-bar {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+        .status-item {
+            padding: 0.75rem 1rem;
+            border-radius: 6px;
+            border: 1px solid;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.85rem;
+        }
+        .status-item.connected { background: #0d2818; border-color: #238636; color: #3fb950; }
+        .status-item.disconnected { background: #2d1214; border-color: #da3633; color: #f85149; }
+        .status-item.warning { background: #2d2208; border-color: #d29922; color: #e3b341; }
+        
+        .indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .indicator.online { background: #3fb950; animation: pulse 2s infinite; }
+        .indicator.offline { background: #f85149; }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .warning-banner {
+            background: rgba(248, 81, 73, 0.1);
+            border: 2px solid #da3633;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            display: none;
+        }
+        .warning-banner.active { display: block; animation: alarm-pulse 1s infinite; }
+        @keyframes alarm-pulse {
+            0%, 100% { border-color: #da3633; }
+            50% { border-color: #f85149; }
+        }
+        .warning-banner h3 { color: #f85149; margin-bottom: 0.5rem; }
+        .warning-banner p { color: #f85149; font-size: 0.9rem; }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .card {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 1rem;
+            transition: all 0.3s;
+        }
+        .card.alarm {
+            border-color: #da3633;
+            box-shadow: 0 0 20px rgba(218, 54, 51, 0.3);
+            animation: card-pulse 1s infinite;
+        }
+        @keyframes card-pulse {
+            0%, 100% { box-shadow: 0 0 20px rgba(218, 54, 51, 0.3); }
+            50% { box-shadow: 0 0 30px rgba(218, 54, 51, 0.5); }
+        }
+        .card-title {
+            font-size: 0.8rem;
+            color: #8b949e;
+            margin-bottom: 0.5rem;
+        }
+        .card-value {
+            font-size: 1.8rem;
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+        }
+        .card-unit {
+            font-size: 0.9rem;
+            color: #8b949e;
+            margin-left: 0.25rem;
+        }
+        
+        .volume-gauge {
+            grid-column: span 2;
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 1.5rem;
+        }
+        .gauge-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        .gauge-bar {
+            height: 32px;
+            background: #21262d;
+            border-radius: 16px;
+            overflow: hidden;
+            position: relative;
+            border: 1px solid #30363d;
+        }
+        .gauge-fill {
+            height: 100%;
+            transition: width 0.5s ease-out;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+        .gauge-fill.low { background: #d29922; }
+        .gauge-fill.normal { background: #58a6ff; }
+        .gauge-fill.full { background: #238636; }
+        .gauge-fill.empty { background: #da3633; }
+        
+        .alarm-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .alarm-item {
+            padding: 0.75rem;
+            border-radius: 6px;
+            border: 1px solid #30363d;
+            background: #21262d;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .alarm-item.active {
+            background: rgba(218, 54, 51, 0.1);
+            border-color: #da3633;
+            animation: alarm-pulse 1s infinite;
+        }
+        .alarm-label { font-size: 0.85rem; }
+        .alarm-status {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .alarm-status.on { background: #da3633; color: white; }
+        .alarm-status.off { background: rgba(35, 134, 54, 0.2); color: #3fb950; }
+        
+        .threshold-section {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 1.5rem;
+        }
+        .threshold-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+        .threshold-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+        .threshold-input {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .threshold-input label {
+            font-size: 0.85rem;
+            color: #8b949e;
+        }
+        .threshold-input input {
+            background: #21262d;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 0.5rem;
+            color: #e6edf3;
+            font-size: 1rem;
+            font-family: 'Courier New', monospace;
+        }
+        .threshold-input input:focus {
+            outline: none;
+            border-color: #58a6ff;
+        }
+        
+        button {
+            background: #238636;
+            color: white;
+            border: none;
+            padding: 0.5rem 1.5rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background 0.2s;
+        }
+        button:hover { background: #2ea043; }
+        button:disabled {
+            background: #30363d;
+            cursor: not-allowed;
+        }
+        
+        .log-section {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #30363d;
+        }
+        .log-title {
+            font-size: 0.85rem;
+            color: #8b949e;
+            margin-bottom: 0.5rem;
+        }
+        .log-content {
+            background: #21262d;
+            border-radius: 6px;
+            padding: 0.75rem;
+            max-height: 150px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.75rem;
+        }
+        .log-entry {
+            color: #8b949e;
+            margin-bottom: 0.25rem;
+        }
+        .log-entry::before {
+            content: "› ";
+            color: #58a6ff;
+        }
+        
+        .no-data {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: #8b949e;
+        }
+        .no-data-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>工业物联网监控大屏</h1>
+            <p class="subtitle">EMQX Cloud MQTT 实时数据监测系统</p>
+            <div class="status-bar">
+                <div id="mqttStatus" class="status-item disconnected">
+                    <span>●</span>
+                    <div>
+                        <div style="font-weight: bold;">MQTT断开</div>
+                        <div style="font-size: 0.75rem; opacity: 0.7;">服务器连接失败</div>
+                    </div>
+                </div>
+                <div id="deviceStatus" class="status-item disconnected" style="display: none;">
+                    <span class="indicator offline"></span>
+                    <div>
+                        <div style="font-weight: bold;">设备离线</div>
+                        <div style="font-size: 0.75rem; opacity: 0.7;">无数据接收</div>
+                    </div>
+                </div>
+                <button id="reconnectBtn" onclick="reconnect()">重新连接</button>
+            </div>
+            <div id="statusText" style="margin-top: 0.5rem; font-size: 0.85rem; color: #8b949e;">
+                正在连接...
+            </div>
+        </header>
+
+        <div id="warningBanner" class="warning-banner">
+            <h3>⚠ 设备离线警告</h3>
+            <p>已超过30秒未收到传感器数据，可能原因：</p>
+            <ul style="margin-left: 1.5rem; margin-top: 0.5rem; font-size: 0.85rem;">
+                <li>ESP32设备异常断电</li>
+                <li>网络连接中断</li>
+                <li>设备程序崩溃</li>
+            </ul>
+            <p id="lastDataTime" style="margin-top: 0.75rem; font-size: 0.8rem; opacity: 0.7;"></p>
+        </div>
+
+        <div id="noData" class="no-data">
+            <div class="no-data-icon">📡</div>
+            <h3>等待传感器数据</h3>
+            <p>MQTT已连接，请确保ESP32正在发送数据</p>
+        </div>
+
+        <div id="dashboard" style="display: none;">
+            <div class="grid">
+                <div class="volume-gauge">
+                    <div class="gauge-header">
+                        <span style="font-size: 0.85rem; color: #8b949e;">剩余容积</span>
+                        <span id="volumeValue" style="font-size: 1.5rem; font-weight: bold;">0%</span>
+                    </div>
+                    <div class="gauge-bar">
+                        <div id="volumeBar" class="gauge-fill normal" style="width: 0%"></div>
+                    </div>
+                </div>
+                
+                <div class="card" id="card-dist">
+                    <div class="card-title">超声波距离</div>
+                    <div>
+                        <span class="card-value" id="value-dist">--</span>
+                        <span class="card-unit">cm</span>
+                    </div>
+                </div>
+                
+                <div class="card" id="card-mq4">
+                    <div class="card-title">燃气浓度</div>
+                    <div>
+                        <span class="card-value" id="value-mq4">--</span>
+                        <span class="card-unit">ppm</span>
+                    </div>
+                </div>
+                
+                <div class="card" id="card-flame">
+                    <div class="card-title">火焰信号</div>
+                    <div class="card-value" id="value-flame">--</div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-title">火焰电压</div>
+                    <div>
+                        <span class="card-value" id="value-flame_mv">--</span>
+                        <span class="card-unit">mV</span>
+                    </div>
+                </div>
+                
+                <div class="card" id="card-temp">
+                    <div class="card-title">环境温度</div>
+                    <div>
+                        <span class="card-value" id="value-temp">--</span>
+                        <span class="card-unit">℃</span>
+                    </div>
+                </div>
+                
+                <div class="card" id="card-humi">
+                    <div class="card-title">环境湿度</div>
+                    <div>
+                        <span class="card-value" id="value-humi">--</span>
+                        <span class="card-unit">%</span>
+                    </div>
+                </div>
+                
+                <div class="card" id="card-tc">
+                    <div class="card-title">PT100温度</div>
+                    <div>
+                        <span class="card-value" id="value-tc">--</span>
+                        <span class="card-unit">℃</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="alarm-grid">
+                <div class="alarm-item" id="alarm-fire">
+                    <span class="alarm-label">火焰报警</span>
+                    <span class="alarm-status off">正常</span>
+                </div>
+                <div class="alarm-item" id="alarm-gas">
+                    <span class="alarm-label">燃气泄漏</span>
+                    <span class="alarm-status off">正常</span>
+                </div>
+                <div class="alarm-item" id="alarm-temp">
+                    <span class="alarm-label">温度过高</span>
+                    <span class="alarm-status off">正常</span>
+                </div>
+                <div class="alarm-item" id="alarm-humi">
+                    <span class="alarm-label">湿度过高</span>
+                    <span class="alarm-status off">正常</span>
+                </div>
+                <div class="alarm-item" id="alarm-tc">
+                    <span class="alarm-label">PT100超温</span>
+                    <span class="alarm-status off">正常</span>
+                </div>
+                <div class="alarm-item" id="alarm-box">
+                    <span class="alarm-label">箱满报警</span>
+                    <span class="alarm-status off">正常</span>
+                </div>
+            </div>
+
+            <div class="threshold-section">
+                <div class="threshold-header">
+                    <h3 style="font-size: 1.1rem;">阈值设置</h3>
+                    <button onclick="publishAllThresholds()">保存全部</button>
+                </div>
+                <div class="threshold-grid">
+                    <div class="threshold-input">
+                        <label>温度上限</label>
+                        <input type="number" id="threshold-temp" step="0.1" value="35.0" onchange="onThresholdChange('temp_high', this.value)">
+                    </div>
+                    <div class="threshold-input">
+                        <label>湿度上限</label>
+                        <input type="number" id="threshold-humi" step="0.1" value="60.0" onchange="onThresholdChange('humi_high', this.value)">
+                    </div>
+                    <div class="threshold-input">
+                        <label>燃气浓度上限</label>
+                        <input type="number" id="threshold-mq4" step="0.1" value="400.0" onchange="onThresholdChange('mq4_high', this.value)">
+                    </div>
+                    <div class="threshold-input">
+                        <label>PT100温度上限</label>
+                        <input type="number" id="threshold-tc" step="0.1" value="100.0" onchange="onThresholdChange('tc_high', this.value)">
+                    </div>
+                </div>
+                <div class="log-section">
+                    <div class="log-title">发送记录</div>
+                    <div id="publishLog" class="log-content"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let client = null;
+        let hasData = false;
+        let deviceOnline = false;
+        let lastDataTime = null;
+        let dataTimeoutCheck = null;
+        const DATA_TIMEOUT_MS = 30000;
+        
+        const brokerUrl = 'wss://YOUR_BROKER_HOST:8084/mqtt';
+        const username = 'YOUR_MQTT_USER';
+        const password = 'YOUR_MQTT_PASSWORD';
+        const dataTopic = 'sensor/data';
+        const thresholdTopic = 'threshold/set';
+        
+        let thresholds = {
+            temp_high: 35.0,
+            humi_high: 60.0,
+            mq4_high: 400.0,
+            tc_high: 100.0
+        };
+
+        function updateMQTTStatus(connected) {
+            const status = document.getElementById('mqttStatus');
+            if (connected) {
+                status.className = 'status-item connected';
+                status.innerHTML = `
+                    <span>●</span>
+                    <div>
+                        <div style="font-weight: bold;">MQTT已连接</div>
+                        <div style="font-size: 0.75rem; opacity: 0.7;">服务器连接正常</div>
+                    </div>
+                `;
+            } else {
+                status.className = 'status-item disconnected';
+                status.innerHTML = `
+                    <span>●</span>
+                    <div>
+                        <div style="font-weight: bold;">MQTT断开</div>
+                        <div style="font-size: 0.75rem; opacity: 0.7;">服务器连接失败</div>
+                    </div>
+                `;
+            }
+        }
+
+        function updateDeviceStatus(online) {
+            const status = document.getElementById('deviceStatus');
+            status.style.display = 'flex';
+            if (online) {
+                status.className = 'status-item connected';
+                status.innerHTML = `
+                    <span class="indicator online"></span>
+                    <div>
+                        <div style="font-weight: bold;">设备在线</div>
+                        <div style="font-size: 0.75rem; opacity: 0.7;">数据接收正常</div>
+                    </div>
+                `;
+            } else {
+                status.className = 'status-item disconnected';
+                status.innerHTML = `
+                    <span class="indicator offline"></span>
+                    <div>
+                        <div style="font-weight: bold;">设备离线</div>
+                        <div style="font-size: 0.75rem; opacity: 0.7;">无数据接收</div>
+                    </div>
+                `;
+            }
+        }
+
+        function checkDataTimeout() {
+            if (!lastDataTime || !hasData) return;
+            
+            const now = new Date();
+            const timeSinceLastData = now.getTime() - lastDataTime.getTime();
+            const isTimedOut = timeSinceLastData > DATA_TIMEOUT_MS;
+            
+            if (isTimedOut && deviceOnline) {
+                deviceOnline = false;
+                updateDeviceStatus(false);
+                document.getElementById('statusText').textContent = '设备离线 - 未收到数据';
+                document.getElementById('warningBanner').classList.add('active');
+                document.getElementById('lastDataTime').textContent = 
+                    '最后收到数据时间: ' + lastDataTime.toLocaleString();
+            }
+        }
+
+        function connectMQTT() {
+            try {
+                document.getElementById('statusText').textContent = '正在连接到 EMQX Cloud...';
+                document.getElementById('reconnectBtn').style.display = 'none';
+                
+                client = mqtt.connect(brokerUrl, {
+                    username: username,
+                    password: password,
+                    clientId: 'web_monitor_' + Math.random().toString(16).substr(2, 8),
+                    reconnectPeriod: 5000,
+                    connectTimeout: 30000,
+                    clean: true,
+                    protocolVersion: 4,
+                    keepalive: 60,
+                    resubscribe: true,
+                });
+
+                client.on('connect', () => {
+                    console.log('[MQTT] Connected');
+                    updateMQTTStatus(true);
+                    document.getElementById('statusText').textContent = 'MQTT已连接，等待传感器数据...';
+                    
+                    client.subscribe(dataTopic, { qos: 1 });
+                    client.subscribe(thresholdTopic, { qos: 1 });
+                });
+
+                client.on('message', (topic, payload) => {
+                    if (topic === dataTopic) {
+                        handleSensorData(payload);
+                    }
+                });
+
+                client.on('error', (err) => {
+                    console.error('[MQTT] Error:', err);
+                    updateMQTTStatus(false);
+                    document.getElementById('statusText').textContent = '连接错误: ' + err.message;
+                });
+
+                client.on('close', () => {
+                    console.log('[MQTT] Closed');
+                    updateMQTTStatus(false);
+                    updateDeviceStatus(false);
+                    document.getElementById('statusText').textContent = '连接已断开';
+                    document.getElementById('reconnectBtn').style.display = 'block';
+                });
+
+                client.on('reconnect', () => {
+                    console.log('[MQTT] Reconnecting...');
+                    document.getElementById('statusText').textContent = '正在重新连接...';
+                });
+
+                // Setup timeout check
+                if (dataTimeoutCheck) clearInterval(dataTimeoutCheck);
+                dataTimeoutCheck = setInterval(checkDataTimeout, 5000);
+
+            } catch (err) {
+                console.error('[MQTT] Connection failed:', err);
+                document.getElementById('statusText').textContent = '连接失败: ' + err.message;
+                document.getElementById('reconnectBtn').style.display = 'block';
+            }
+        }
+
+        function handleSensorData(payload) {
+            try {
+                const text = new TextDecoder().decode(payload);
+                const data = JSON.parse(text);
+                
+                if (!hasData) {
+                    hasData = true;
+                    deviceOnline = true;
+                    updateDeviceStatus(true);
+                    document.getElementById('statusText').textContent = '数据接收正常';
+                    document.getElementById('noData').style.display = 'none';
+                    document.getElementById('dashboard').style.display = 'block';
+                    document.getElementById('warningBanner').classList.remove('active');
+                }
+                
+                deviceOnline = true;
+                lastDataTime = new Date();
+                updateDeviceStatus(true);
+                document.getElementById('warningBanner').classList.remove('active');
+                
+                // Update sensor values
+                document.getElementById('value-dist').textContent = data.dist.toFixed(1);
+                document.getElementById('value-mq4').textContent = data.mq4.toFixed(0);
+                document.getElementById('value-flame').textContent = data.flame === 1 ? '检测到' : '无';
+                document.getElementById('value-flame_mv').textContent = data.flame_mv.toFixed(0);
+                document.getElementById('value-temp').textContent = data.temp.toFixed(1);
+                document.getElementById('value-humi').textContent = data.humi.toFixed(1);
+                document.getElementById('value-tc').textContent = data.tc.toFixed(1);
+                
+                // Update volume gauge
+                const volumePercent = data.volume_percent;
+                document.getElementById('volumeValue').textContent = volumePercent.toFixed(1) + '%';
+                const volumeBar = document.getElementById('volumeBar');
+                volumeBar.style.width = volumePercent + '%';
+                volumeBar.textContent = volumePercent > 15 ? volumePercent.toFixed(0) + '%' : '';
+                
+                if (volumePercent <= 10) volumeBar.className = 'gauge-fill empty';
+                else if (volumePercent <= 30) volumeBar.className = 'gauge-fill low';
+                else if (volumePercent >= 90) volumeBar.className = 'gauge-fill full';
+                else volumeBar.className = 'gauge-fill normal';
+                
+                // Update alarms
+                updateAlarm('alarm-fire', data.alert.fire);
+                updateAlarm('alarm-gas', data.alert.gas);
+                updateAlarm('alarm-temp', data.alert.temp_high);
+                updateAlarm('alarm-humi', data.alert.humi_high);
+                updateAlarm('alarm-tc', data.alert.tc_high);
+                updateAlarm('alarm-box', data.alert.box_full);
+                
+                // Update card alarms
+                updateCardAlarm('card-mq4', data.alert.gas);
+                updateCardAlarm('card-temp', data.alert.temp_high);
+                updateCardAlarm('card-humi', data.alert.humi_high);
+                updateCardAlarm('card-tc', data.alert.tc_high);
+                updateCardAlarm('card-flame', data.alert.fire);
+                
+            } catch (err) {
+                console.error('[Parse Error]:', err);
+            }
+        }
+
+        function updateAlarm(id, isActive) {
+            const element = document.getElementById(id);
+            const status = element.querySelector('.alarm-status');
+            if (isActive) {
+                element.classList.add('active');
+                status.className = 'alarm-status on';
+                status.textContent = '报警';
+            } else {
+                element.classList.remove('active');
+                status.className = 'alarm-status off';
+                status.textContent = '正常';
+            }
+        }
+
+        function updateCardAlarm(id, isActive) {
+            const element = document.getElementById(id);
+            if (isActive) {
+                element.classList.add('alarm');
+            } else {
+                element.classList.remove('alarm');
+            }
+        }
+
+        function onThresholdChange(field, value) {
+            thresholds[field] = parseFloat(value);
+            if (client && client.connected) {
+                const payload = { [field]: thresholds[field] };
+                addPublishLog('发送: ' + JSON.stringify(payload));
+                client.publish(thresholdTopic, JSON.stringify(payload), { qos: 1 });
+                document.getElementById('statusText').textContent = '已发送阈值更新: ' + field + '=' + thresholds[field];
+            }
+        }
+
+        function publishAllThresholds() {
+            if (client && client.connected) {
+                addPublishLog('发送全部: ' + JSON.stringify(thresholds));
+                client.publish(thresholdTopic, JSON.stringify(thresholds), { qos: 1 });
+                document.getElementById('statusText').textContent = '已发送全部阈值设置';
+            }
+        }
+
+        function addPublishLog(message) {
+            const log = document.getElementById('publishLog');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.textContent = message;
+            log.appendChild(entry);
+            if (log.children.length > 10) {
+                log.removeChild(log.firstChild);
+            }
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function reconnect() {
+            if (client) {
+                client.end(true);
+            }
+            hasData = false;
+            deviceOnline = false;
+            lastDataTime = null;
+            document.getElementById('dashboard').style.display = 'none';
+            document.getElementById('noData').style.display = 'block';
+            document.getElementById('warningBanner').classList.remove('active');
+            setTimeout(connectMQTT, 500);
+        }
+
+        // Auto connect on load
+        window.addEventListener('load', () => {
+            setTimeout(connectMQTT, 500);
+        });
+    </script>
+</body>
+</html>

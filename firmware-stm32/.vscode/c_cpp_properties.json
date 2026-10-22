@@ -1,0 +1,31 @@
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/std_periph_driver/inc",
+                "${workspaceFolder}/user",
+                "${workspaceFolder}/my_lib",
+                "${workspaceFolder}/App",
+                "${workspaceFolder}/startup",
+                "${workspaceFolder}/std_periph_driver/inc"
+            ],
+            "defines": [
+                "USE_STDPERIPH_DRIVER",
+                "STM32F10X_MD"
+            ],
+            "intelliSenseMode": "gcc-x64",
+            "cStandard": "c11",
+            "cppStandard": "c++17",
+            "browse": {
+                "path": [
+                    "${workspaceFolder}/**"
+                ],
+                "limitSymbolsToIncludedHeaders": true
+            },
+            "compilerPath": "E:/MinGW/bin/gcc.exe"
+        }
+    ],
+    "version": 4
+}

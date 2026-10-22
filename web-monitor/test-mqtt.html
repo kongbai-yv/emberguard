@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MQTT 连接测试</title>
+    <script src="https://unpkg.com/mqtt@5.7.0/dist/mqtt.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0d1117;
+            color: #e6edf3;
+            padding: 2rem;
+            min-height: 100vh;
+        }
+        .container { max-width: 800px; margin: 0 auto; }
+        h1 { font-size: 1.5rem; margin-bottom: 1rem; color: #58a6ff; }
+        .status {
+            padding: 1rem;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            border: 1px solid;
+        }
+        .status.connected { background: #0d2818; border-color: #238636; color: #3fb950; }
+        .status.disconnected { background: #2d1214; border-color: #da3633; color: #f85149; }
+        .log {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 1rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .log-entry { margin-bottom: 0.5rem; line-height: 1.5; }
+        .log-entry.error { color: #f85149; }
+        .log-entry.success { color: #3fb950; }
+        .log-entry.info { color: #58a6ff; }
+        button {
+            background: #238636;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            margin-right: 0.5rem;
+        }
+        button:hover { background: #2ea043; }
+        button:disabled { background: #30363d; cursor: not-allowed; }
+        .controls { margin-bottom: 1rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>MQTT 连接测试工具</h1>
+        <div id="status" class="status disconnected">未连接</div>
+        <div class="controls">
+            <button id="connectBtn" onclick="connectMQTT()">连接</button>
+            <button id="disconnectBtn" onclick="disconnectMQTT()" disabled>断开</button>
+            <button onclick="testPublish()">测试下发阈值</button>
+            <button onclick="clearLog()">清除日志</button>
+        </div>
+        <div id="log" class="log"></div>
+    </div>
+
+    <script>
+        let client = null;
+        const brokerUrl = 'wss://YOUR_BROKER_HOST:8084/mqtt';
+        const username = 'ESP32';
+        const password = 'YOUR_PASSWORD';
+        const dataTopic = 'sensor/data';
+        const thresholdTopic = 'threshold/set';
+
+        function addLog(message, type = 'info') {
+            const log = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            const time = new Date().toLocaleTimeString();
+            entry.textContent = `[${time}] ${message}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function updateStatus(connected, message) {
+            const status = document.getElementById('status');
+            status.className = `status ${connected ? 'connected' : 'disconnected'}`;
+            status.textContent = message;
+            document.getElementById('connectBtn').disabled = connected;
+            document.getElementById('disconnectBtn').disabled = !connected;
+        }
+
+        function connectMQTT() {
+            try {
+                addLog('正在连接到 MQTT Broker...', 'info');
+                updateStatus(false, '正在连接...');
+
+                client = mqtt.connect(brokerUrl, {
+                    username: username,
+                    password: password,
+                    clientId: 'web_test_' + Math.random().toString(16).substr(2, 8),
+                    reconnectPeriod: 5000,
+                    connectTimeout: 30000,
+                    clean: true,
+                    protocolVersion: 4,
+                    keepalive: 60,
+                });
+
+                client.on('connect', () => {
+                    addLog('成功连接到 MQTT Broker', 'success');
+                    updateStatus(true, '已连接');
+
+                    client.subscribe(dataTopic, { qos: 1 }, (err) => {
+                        if (err) {
+                            addLog(`订阅失败: ${err.message}`, 'error');
+                        } else {
+                            addLog(`已订阅主题: ${dataTopic}`, 'success');
+                        }
+                    });
+
+                    client.subscribe(thresholdTopic, { qos: 1 }, (err) => {
+                        if (err) {
+                            addLog(`订阅失败: ${err.message}`, 'error');
+                        } else {
+                            addLog(`已订阅主题: ${thresholdTopic}`, 'success');
+                        }
+                    });
+                });
+
+                client.on('message', (topic, payload) => {
+                    const message = payload.toString();
+                    addLog(`收到消息 [${topic}]: ${message}`, 'success');
+                    try {
+                        const data = JSON.parse(message);
+                        addLog(`解析数据: ${JSON.stringify(data, null, 2)}`, 'info');
+                    } catch (e) {
+                        // Not JSON
+                    }
+                });
+
+                client.on('error', (err) => {
+                    addLog(`连接错误: ${err.message}`, 'error');
+                    updateStatus(false, '连接错误');
+                });
+
+                client.on('close', () => {
+                    addLog('连接已关闭', 'info');
+                    updateStatus(false, '已断开');
+                });
+
+                client.on('reconnect', () => {
+                    addLog('正在重新连接...', 'info');
+                    updateStatus(false, '正在重连...');
+                });
+
+                client.on('offline', () => {
+                    addLog('客户端离线', 'error');
+                    updateStatus(false, '离线');
+                });
+
+                client.on('end', () => {
+                    addLog('连接已结束', 'info');
+                    updateStatus(false, '已结束');
+                });
+
+            } catch (err) {
+                addLog(`连接失败: ${err.message}`, 'error');
+                updateStatus(false, '连接失败');
+            }
+        }
+
+        function disconnectMQTT() {
+            if (client) {
+                client.end(true);
+                client = null;
+                addLog('手动断开连接', 'info');
+                updateStatus(false, '已断开');
+            }
+        }
+
+        function testPublish() {
+            if (!client || !client.connected) {
+                addLog('错误: 未连接', 'error');
+                return;
+            }
+            const testPayload = { temp_high: 35.0 };
+            client.publish(thresholdTopic, JSON.stringify(testPayload), { qos: 1 }, (err) => {
+                if (err) {
+                    addLog(`下发失败: ${err.message}`, 'error');
+                } else {
+                    addLog(`成功下发阈值: ${JSON.stringify(testPayload)}`, 'success');
+                }
+            });
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        // Auto connect on load
+        window.addEventListener('load', () => {
+            setTimeout(connectMQTT, 500);
+        });
+    </script>
+</body>
+</html>

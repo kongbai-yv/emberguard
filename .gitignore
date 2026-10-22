@@ -1,0 +1,57 @@
+# ---- 凭据 / secrets ----
+secrets.h
+*.local.js
+.env
+.env.*
+
+# ---- 依赖 / dependencies ----
+node_modules/
+.unpackage/
+unpackage/
+
+# ---- 构建产物 / build output ----
+dist/
+build/
+DebugConfig/
+Listings/
+Objects/
+*.hex
+*.bin
+*.axf
+*.map
+*.o
+*.d
+*.crf
+*.lst
+*.lnp
+*.sct
+*.dep
+*.htm
+
+# ---- IDE / 编辑器 ----
+.vscode/*.json.bak
+*.uvguix.*
+*.uvguix
+*.uvoptx.bak
+.idea/
+*.swp
+
+# ---- 字体与二进制（体积/授权原因不入库）----
+*.ttf
+*.ttc
+*.otf
+*.exe
+*.dll
+*.lib
+
+# ---- 系统文件 ----
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# ---- 本地日志 ----
+*.log
+logs/
+
+*.tsbuildinfo
+
