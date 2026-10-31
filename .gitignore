@@ -35,6 +35,8 @@ Objects/
 *.uvoptx.bak
 .idea/
 *.swp
+.claude/
+.cursor/
 
 # ---- 字体与二进制（体积/授权原因不入库）----
 *.ttf

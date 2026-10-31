@@ -50,7 +50,7 @@
             <InvalidFlash>1</InvalidFlash>
           </TargetStatus>
           <OutputDirectory>D:\AAAdemo\</OutputDirectory>
-          <OutputName>template</OutputName>
+          <OutputName>EmberGuard</OutputName>
           <CreateExecutable>1</CreateExecutable>
           <CreateLib>0</CreateLib>
           <CreateHexFile>1</CreateHexFile>
@@ -337,7 +337,7 @@
               <MiscControls>--no-multibyte-chars</MiscControls>
               <Define></Define>
               <Undefine></Undefine>
-              <IncludePath>.\std_periph_driver\inc;.\user;.\my_lib;.\my_lib\font;.\my_lib\font\.h;.\App;..\template</IncludePath>
+              <IncludePath>.\std_periph_driver\inc;.\user;.\my_lib</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -790,16 +790,6 @@
               <FileName>bsp_flame.c</FileName>
               <FileType>1</FileType>
               <FilePath>.\bsp_flame.c</FilePath>
-            </File>
-            <File>
-              <FileName>bsp_dht11.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>.\bsp_dht11.c</FilePath>
-            </File>
-            <File>
-              <FileName>bsp_sht11.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>.\bsp_sht11.h</FilePath>
             </File>
             <File>
               <FileName>DHT11.c</FileName>

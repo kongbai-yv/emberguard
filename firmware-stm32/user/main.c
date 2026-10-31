@@ -20,7 +20,7 @@
 #define DEFAULT_TEMP_HIGH      35      // 温度高报警阈值 (℃)
 #define DEFAULT_HUMI_HIGH      75      // 湿度高报警阈值 (%)
 #define DEFAULT_MQ4_HIGH       500     // 可燃气体高报警阈值 (ppm)
-#define DEFAULT_TC_HIGH        50      // PT100温度高报警阈值 (℃)
+#define DEFAULT_TC_HIGH        50      // 热电偶（MAX6675）温度高报警阈值 (℃)
 
 /* ========== 全局阈值变量 ========== */
 volatile float g_threshold_temp_high  = DEFAULT_TEMP_HIGH;
@@ -341,11 +341,8 @@ int main(void)
             SPI_OLED_ShowChinese(x_offset, 32, "过"); x_offset += 16;
             SPI_OLED_ShowChinese(x_offset, 32, "高");
         } else if (alert_tc_high) {
-            SPI_OLED_ShowChar_8x16(x_offset, 32, 'P'); x_offset += 8;
             SPI_OLED_ShowChar_8x16(x_offset, 32, 'T'); x_offset += 8;
-            SPI_OLED_ShowChar_8x16(x_offset, 32, '1'); x_offset += 8;
-            SPI_OLED_ShowChar_8x16(x_offset, 32, '0'); x_offset += 8;
-            SPI_OLED_ShowChar_8x16(x_offset, 32, '0'); x_offset += 8;
+            SPI_OLED_ShowChar_8x16(x_offset, 32, 'C'); x_offset += 8;
             SPI_OLED_ShowChinese(x_offset, 32, "超"); x_offset += 16;
             SPI_OLED_ShowChinese(x_offset, 32, "限");
         } else {

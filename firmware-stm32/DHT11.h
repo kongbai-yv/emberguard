@@ -6,7 +6,7 @@
 // 修改这里可以更换引脚
 #define DHT11_PORT       GPIOB
 #define DHT11_PIN       GPIO_Pin_12
-#define DHT11_RCC        RCC_APB2Periph_GPIOA
+#define DHT11_RCC        RCC_APB2Periph_GPIOB
 // 引脚操作宏
 #define DHT11_OUT_HIGH() GPIO_SetBits(DHT11_PORT, DHT11_PIN)
 #define DHT11_OUT_LOW()  GPIO_ResetBits(DHT11_PORT, DHT11_PIN)
